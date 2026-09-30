@@ -1,6 +1,12 @@
 CLUSTER   ?= devops-live
 NS        ?= devops-live
 IMAGE     ?= devops-live-api
+# Fully-qualified so Podman doesn't tag it as localhost/... (pods would get ErrImagePull)
+IMAGE_REF := docker.io/library/$(IMAGE)
+
+# Use kind's podman provider when `docker` is really podman
+KIND_EXPERIMENTAL_PROVIDER ?= $(shell docker --version 2>/dev/null | grep -qi podman && echo podman)
+export KIND_EXPERIMENTAL_PROVIDER
 
 .DEFAULT_GOAL := help
 
@@ -11,7 +17,7 @@ help: ## Show this help
 # ---------------------------------------------------------------- before the live
 .PHONY: preflight
 preflight: ## Check tools + pre-pull every image (run ~1h before going live)
-	@for t in docker kubectl kind curl; do command -v $$t >/dev/null && echo "ok   $$t" || echo "MISSING $$t"; done
+	@for t in docker kubectl kind curl; do command -v $$t >/dev/null && echo "ok   $$t" || { echo "MISSING $$t"; exit 1; }; done
 	docker pull python:3.12-slim
 	docker pull postgres:16-alpine
 	$(MAKE) build build-v2
@@ -31,10 +37,10 @@ compose-down: ## Stop docker compose and remove its volumes
 # ---------------------------------------------------------------- images
 .PHONY: build build-v2
 build: ## Build devops-live-api:1.0
-	docker build -t $(IMAGE):1.0 --build-arg APP_VERSION=1.0 app
+	docker build -t $(IMAGE_REF):1.0 --build-arg APP_VERSION=1.0 app
 
 build-v2: ## Build devops-live-api:2.0 (for the rolling update)
-	docker build -t $(IMAGE):2.0 --build-arg APP_VERSION=2.0 app
+	docker build -t $(IMAGE_REF):2.0 --build-arg APP_VERSION=2.0 app
 
 # ---------------------------------------------------------------- cluster
 .PHONY: cluster cluster-delete load load-v2 load-postgres
@@ -46,13 +52,13 @@ cluster-delete: ## Delete the Kind cluster
 	kind delete cluster --name $(CLUSTER)
 
 load: ## Load devops-live-api:1.0 into the Kind nodes
-	kind load docker-image $(IMAGE):1.0 --name $(CLUSTER)
+	kind load docker-image $(IMAGE_REF):1.0 --name $(CLUSTER)
 
 load-v2: ## Load devops-live-api:2.0 into the Kind nodes
-	kind load docker-image $(IMAGE):2.0 --name $(CLUSTER)
+	kind load docker-image $(IMAGE_REF):2.0 --name $(CLUSTER)
 
 load-postgres: ## Pre-load postgres:16-alpine into Kind (avoids Docker Hub pulls live)
-	kind load docker-image postgres:16-alpine --name $(CLUSTER)
+	kind load docker-image docker.io/library/postgres:16-alpine --name $(CLUSTER)
 
 # ---------------------------------------------------------------- deploy
 .PHONY: ns deploy-final port-forward status lb-demo traffic reset
