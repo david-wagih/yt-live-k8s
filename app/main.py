@@ -99,7 +99,17 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="Task Management API", version=APP_VERSION, lifespan=lifespan)
+# Native OpenTelemetry (FastAPI >= 0.142): traces + metrics + logs are ON by default.
+# Nothing is exported until OTEL_EXPORTER_OTLP_ENDPOINT is set (e.g. via the ConfigMap).
+# Probe endpoints are excluded, otherwise Kubernetes probes flood the traces every few seconds.
+PROBE_PATHS = {"/health", "/ready"}
+
+app = FastAPI(
+    title="Task Management API",
+    version=APP_VERSION,
+    lifespan=lifespan,
+    telemetry={"exclude": lambda scope: scope["path"] in PROBE_PATHS},
+)
 
 
 class TaskIn(BaseModel):

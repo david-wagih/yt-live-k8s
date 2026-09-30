@@ -64,6 +64,7 @@ If `DB_HOST`, `DB_USER` or `DB_PASSWORD` is missing, the app exits on purpose
 ├── kind-config.yaml         # 1 control-plane + 2 workers
 ├── k8s/                     # EMPTY WORKSPACE — we write the manifests here, live
 ├── final/k8s/               # Known-good reference manifests (recovery point!)
+├── final/observability/     # 🆕 Bonus: Jaeger + ConfigMap that turns on FastAPI's native OpenTelemetry
 ├── troubleshooting/         # Intentionally broken manifests for the debugging challenge
 ├── docs/RUNBOOK.md          # The live script: every step, command, and talking point
 └── Makefile                 # Shortcuts (make help)
@@ -94,6 +95,18 @@ Run `make help` for everything else.
 See the **Pre-live checklist** at the top of [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 The short version: run `make preflight` an hour before, so all images are already
 pulled (Docker Hub rate limits during a live stream are not fun).
+
+## 🆕 Bonus: FastAPI native OpenTelemetry
+
+FastAPI 0.142 (Sept 2026) records traces, metrics and logs **by default**. This app uses it, and
+tracing turns on through the **ConfigMap alone**, with no code changes:
+
+```bash
+make observability     # deploy Jaeger + ConfigMap with OTEL_* keys + rollout restart
+make jaeger-ui         # http://localhost:16686 → service "task-api"
+```
+
+See the Bonus section in [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ## Out of scope today (future lives)
 

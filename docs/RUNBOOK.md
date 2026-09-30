@@ -32,7 +32,8 @@ docker image rm devops-live-api:1.0 devops-live-api:2.0   # optional: so Part 1 
 01:15–01:20  Part 6  Service + port-forward  → first milestone 🎉
 01:20–01:35  Part 7–8  Health checks + resources
 01:35–01:50  Part 9–10  Scaling, self-healing, rolling update, rollback
-01:50–02:00+ Part 11 Troubleshooting challenge + Part 12 "what changes in production" + Q&A
+01:50–02:00  🆕 Bonus  FastAPI native OpenTelemetry + Jaeger (optional)
+02:00–02:15+ Part 11 Troubleshooting challenge + Part 12 "what changes in production" + Q&A
 ```
 
 ---
@@ -494,9 +495,91 @@ Deploy → Scale → Update → Rollback
 
 ---
 
+## 🆕 Bonus — What's new: FastAPI native OpenTelemetry (~10 min, skip if short on time)
+
+**The news:** FastAPI **0.142.0** (released Sept 29, 2026) added **native OpenTelemetry**:
+traces, metrics and logs for every request, **on by default**. It ships in `fastapi[standard]`,
+and this app is already on **0.142.2**. Docs: https://fastapi.tiangolo.com/advanced/opentelemetry/
+
+🎙️ "I know we're here for Kubernetes, but this landed in FastAPI *this week*, and it's the perfect
+excuse to show one more Kubernetes idea: **the same image changes behavior through configuration alone.**
+We won't touch a single line of code."
+
+Show the only telemetry code in `app/main.py`. It's optional, and it only keeps probe calls out of the traces:
+
+```python
+app = FastAPI(..., telemetry={"exclude": lambda scope: scope["path"] in PROBE_PATHS})
+```
+
+🎙️ "Remember our probes? Kubernetes hits `/health` and `/ready` every few seconds. Without this
+line, your traces are 95% probe noise."
+
+### 1. Deploy Jaeger (a tracing backend + UI)
+
+> Tip: run `make load-jaeger` quietly earlier (e.g. during Part 9) so the cluster doesn't pull from Docker Hub live.
+
+```bash
+kubectl apply -f final/observability/jaeger.yaml
+kubectl get pods -l app=jaeger
+```
+
+### 2. Turn tracing on with the ConfigMap
+
+Open `final/observability/configmap-otel.yaml`. It's our ConfigMap plus two keys:
+
+```yaml
+  OTEL_SERVICE_NAME: task-api
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces   # <- Service DNS again!
+```
+
+```bash
+kubectl apply -f final/observability/configmap-otel.yaml
+kubectl get pods           # 🎙️ "Did anything restart?" → No!
+kubectl rollout restart deployment/backend    # env vars are read only at container start
+```
+
+(Shortcut for all of the above: `make observability`)
+
+### 3. Generate traffic and look at traces
+
+```bash
+make traffic                        # tab 1: continuous requests
+make jaeger-ui                      # tab 2: http://localhost:16686
+curl -X POST localhost:8080/tasks -H 'Content-Type: application/json' -d '{"title":"Traced!"}'
+```
+
+In Jaeger, pick service **task-api** → *Find Traces*. Open a `POST /tasks` trace and show the spans:
+`fastapi.dependencies` → `fastapi.endpoint` → `fastapi.serialization`, each with its timing.
+Point out that **no `/health` or `/ready` traces** appear.
+
+### 4. Break the database and watch it in the traces 💥
+
+```bash
+kubectl scale deployment postgres --replicas=0
+curl localhost:8080/tasks            # 503
+```
+
+Refresh Jaeger → `GET /tasks` traces with **status 503**. 🎙️ "In production you'd find this in a
+dashboard *before* a user tells you."
+
+```bash
+kubectl scale deployment postgres --replicas=1
+```
+
+**Honest caveats to mention:**
+- The spans cover FastAPI's own work (request, dependencies, endpoint, serialization). The SQL queries
+  are **not** separate spans; that needs a DB instrumentation library.
+- We only send **traces** because Jaeger only stores traces. With an OpenTelemetry Collector or a vendor
+  (Grafana, Datadog, Honeycomb…), set `OTEL_EXPORTER_OTLP_ENDPOINT` instead and FastAPI sends
+  traces, metrics **and** logs.
+- Jaeger here uses in-memory storage. It's a demo, not a production setup.
+
+---
+
 ## Part 11 — Troubleshooting challenge (15–20 min)
 
-See [`troubleshooting/README.md`](../troubleshooting/README.md). Reset to known-good first:
+See [`troubleshooting/README.md`](../troubleshooting/README.md). Reset to known-good first
+(this also drops the OTel keys from the ConfigMap if you did the bonus; Jaeger just keeps running, unused):
 
 ```bash
 kubectl apply -f final/k8s/
@@ -530,6 +613,7 @@ Plain Secrets in git    →  External Secrets / Vault / Sealed Secrets
 emptyDir                →  PersistentVolumes / StatefulSets / Managed databases (RDS, Cloud SQL)
 kubectl apply           →  CI/CD + GitOps (Argo CD / Flux)
 kubectl scale           →  HorizontalPodAutoscaler
+kubectl logs            →  OpenTelemetry → Collector → Grafana / Datadog / …
 Raw YAML                →  Helm / Kustomize
 ```
 
@@ -557,4 +641,5 @@ kind delete cluster --name devops-live   # or: make cluster-delete
 | `ImagePullBackOff` on backend         | `make load` (or `make load-v2`) — image isn't inside the Kind nodes |
 | port-forward died                     | It dies when its Pod is deleted/replaced — just rerun it            |
 | `curl: connection refused` on 8080    | port-forward not running                                            |
+| `ImagePullBackOff` on jaeger          | `docker pull jaegertracing/jaeger:2.10.0 && make load-jaeger`       |
 | Cluster totally broken                | `make cluster-delete && make cluster && make load ns deploy-final`  |

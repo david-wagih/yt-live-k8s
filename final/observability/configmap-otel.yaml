@@ -1,0 +1,19 @@
+# Same ConfigMap as final/k8s/01-configmap.yaml + 2 OpenTelemetry keys.
+# FastAPI >= 0.142 picks these up automatically — zero code changes.
+#
+# After applying: kubectl rollout restart deployment/backend
+# (env vars are only read when a container starts)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: devops-live
+data:
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: tasks
+  OTEL_SERVICE_NAME: task-api
+  # Traces-only endpoint: Jaeger stores traces, not metrics/logs.
+  # (With a full backend like Grafana/Datadog/an OTel Collector, use
+  #  OTEL_EXPORTER_OTLP_ENDPOINT: http://<collector>:4318 to send all three.)
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
