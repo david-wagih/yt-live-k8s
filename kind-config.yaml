@@ -1,0 +1,10 @@
+# kind create cluster --name devops-live --config kind-config.yaml
+#
+# 1 control-plane + 2 workers, so `kubectl get pods -o wide` shows
+# Pods being scheduled across different nodes.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

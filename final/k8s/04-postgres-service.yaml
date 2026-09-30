@@ -1,0 +1,13 @@
+# Gives postgres a stable DNS name inside the cluster: "postgres"
+# (full name: postgres.devops-live.svc.cluster.local)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: devops-live
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

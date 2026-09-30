@@ -1,0 +1,10 @@
+# Non-sensitive configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: devops-live
+data:
+  DB_HOST: postgres          # <- the name of the postgres Service (cluster DNS)
+  DB_PORT: "5432"
+  DB_NAME: tasks
