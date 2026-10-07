@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-live-api
+spec:
+  replicas: 2 # what was the replicaSet providing
+  selector:
+    matchLabels:
+      app: devops-live-api
+  template: # describe the pod template
+    metadata:
+      labels:
+        app: devops-live-api
+    spec:
+      containers:
+      - name: devops-live-api
+        image: docker.io/library/devops-live-api:1.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DB_HOST
+          value: "devops-live-db"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "password"
