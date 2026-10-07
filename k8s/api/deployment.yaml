@@ -24,3 +24,11 @@ spec:
           value: "postgres"
         - name: DB_PASSWORD
           value: "password"
+        # Readiness -> "should Kubernetes SEND TRAFFIC to this Pod?"
+        # /ready checks the DB; not ready = removed from the Service endpoints (and the Ingress)
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 2
+          periodSeconds: 5

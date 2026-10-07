@@ -22,6 +22,8 @@ spec:
           value: "postgres"
         - name: POSTGRES_PASSWORD
           value: "password"
+        - name: POSTGRES_DB # the API connects to DB_NAME (default "tasks")
+          value: "tasks"
         volumeMounts:
         - name: postgres-data
           mountPath: /var/lib/postgresql/data

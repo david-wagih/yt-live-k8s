@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devops-live-api
+spec:
+  ingressClassName: nginx # handled by the ingress-nginx controller
+  rules:
+  - host: api.localhost # *.localhost resolves to 127.0.0.1, no /etc/hosts needed
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: devops-live-api
+            port:
+              number: 8000
